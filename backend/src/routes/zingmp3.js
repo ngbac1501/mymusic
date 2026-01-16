@@ -2,6 +2,22 @@ import express from 'express';
 import pkg from 'zingmp3-api-full-v3';
 const { ZingMp3 } = pkg;
 
+// Patch: Override getCookie to use environment variable if present
+// This helps bypass ZingMP3's blocks on Vercel by using a real user cookie
+if (process.env.ZING_MP3_COOKIE) {
+    let cookie = process.env.ZING_MP3_COOKIE;
+    // Auto-fix if user pasted "Cookie: " prefix
+    if (cookie.startsWith('Cookie:')) {
+        cookie = cookie.substring(7).trim();
+    }
+
+    console.log('🍪 Using custom ZingMP3 cookie from environment (Length:', cookie.length, ')');
+
+    ZingMp3.getCookie = function () {
+        return Promise.resolve(cookie);
+    };
+}
+
 const router = express.Router();
 
 // Helper function để xử lý errors
@@ -9,7 +25,8 @@ const handleError = (res, error, message = 'API Error') => {
     console.error(`${message}:`, error);
     res.status(500).json({
         error: message,
-        details: error.message
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
 };
 
@@ -219,37 +236,70 @@ router.get('/lyric', async (req, res) => {
  * GET /api/debug/song/:id
  * Debug endpoint - test song fetch without caching
  */
+/**
+ * GET /api/debug/env
+ * Check environment configuration
+ */
+router.get('/debug/env', (req, res) => {
+    const cookie = process.env.ZING_MP3_COOKIE;
+    res.json({
+        hasCookie: !!cookie,
+        cookieLength: cookie ? cookie.length : 0,
+        cookiePreview: cookie ? cookie.substring(0, 15) + '...' : null,
+        timestamp: Date.now(),
+        nodeEnv: process.env.NODE_ENV
+    });
+});
+
+/**
+ * GET /api/debug/song/:id
+ * Debug endpoint - test song fetch without caching
+ */
 router.get('/debug/song/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const cookie = process.env.ZING_MP3_COOKIE;
+
         console.log(`\n🔍 Debug: Fetching song ${id}...`);
 
-        // Try both methods
-        const infoResult = await ZingMp3.getInfoSong(id).catch(e => {
-            console.log(`⚠️ getInfoSong failed:`, e.message);
-            return null;
-        });
+        // Try both methods and capture errors
+        let infoData = null;
+        let infoError = null;
+        try {
+            const result = await ZingMp3.getInfoSong(id);
+            infoData = result.data;
+        } catch (e) {
+            infoError = e.message;
+        }
 
-        const songResult = await ZingMp3.getSong(id).catch(e => {
-            console.log(`⚠️ getSong failed:`, e.message);
-            return null;
-        });
+        let songData = null;
+        let songError = null;
+        try {
+            const result = await ZingMp3.getSong(id);
+            songData = result.data;
+        } catch (e) {
+            songError = e.message;
+        }
 
         const response = {
-            songId: id,
-            infoSong: infoResult?.data || null,
-            song: songResult?.data || null,
-            hasInfo: !!infoResult,
-            hasSong: !!songResult,
+            sysInfo: {
+                hasCookie: !!cookie,
+                cookieLength: cookie ? cookie.length : 0,
+            },
+            request: { songId: id },
+            results: {
+                info: {
+                    success: !!infoData,
+                    data: infoData,
+                    error: infoError
+                },
+                streaming: { // This calls getSong
+                    success: !!songData,
+                    data: songData,
+                    error: songError
+                }
+            }
         };
-
-        console.log(`✅ Debug result:`, {
-            songId: id,
-            hasInfo: !!infoResult,
-            hasSong: !!songResult,
-            infoTitle: infoResult?.data?.title,
-            songTitle: songResult?.data?.title,
-        });
 
         res.json(response);
     } catch (error) {
