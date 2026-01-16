@@ -1,0 +1,261 @@
+import express from 'express';
+import pkg from 'zingmp3-api-full-v3';
+const { ZingMp3 } = pkg;
+
+const router = express.Router();
+
+// Helper function để xử lý errors
+const handleError = (res, error, message = 'API Error') => {
+    console.error(`${message}:`, error);
+    res.status(500).json({
+        error: message,
+        details: error.message
+    });
+};
+
+/**
+ * GET /api/trending
+ * Lấy bài hát trending
+ */
+router.get('/trending', async (req, res) => {
+    try {
+        const response = await ZingMp3.getChartHome();
+        const items = response?.data?.RTChart?.items || [];
+        res.json(items);
+    } catch (error) {
+        handleError(res, error, 'Error getting trending songs');
+    }
+});
+
+/**
+ * GET /api/recommendations
+ * Lấy đề xuất bài hát
+ */
+router.get('/recommendations', async (req, res) => {
+    try {
+        const response = await ZingMp3.getChartHome();
+        const items = response?.data?.RTChart?.items || [];
+        res.json(items);
+    } catch (error) {
+        handleError(res, error, 'Error getting recommendations');
+    }
+});
+
+/**
+ * GET /api/new-releases
+ * Lấy bài hát mới phát hành
+ */
+router.get('/new-releases', async (req, res) => {
+    try {
+        const response = await ZingMp3.getNewReleaseChart();
+
+        // Response format: {err, msg, data: {items: {all: [...], vPop: [...], others: [...]}}}
+        let items = [];
+        if (response?.data?.items) {
+            items = response.data.items.all || response.data.items.vPop || response.data.items.others || [];
+        } else if (Array.isArray(response?.data)) {
+            items = response.data;
+        }
+
+        res.json(items);
+    } catch (error) {
+        handleError(res, error, 'Error getting new releases');
+    }
+});
+
+/**
+ * GET /api/chart
+ * Lấy chart home
+ */
+router.get('/chart', async (req, res) => {
+    try {
+        const response = await ZingMp3.getChartHome();
+        res.json(response?.data || {});
+    } catch (error) {
+        handleError(res, error, 'Error getting chart');
+    }
+});
+
+/**
+ * GET /api/top100
+ * Lấy top 100
+ */
+router.get('/top100', async (req, res) => {
+    try {
+        const response = await ZingMp3.getTop100();
+
+        // Flatten sections into single array of playlists
+        let playlists = [];
+        if (Array.isArray(response?.data)) {
+            playlists = response.data.flatMap(section =>
+                Array.isArray(section.items) ? section.items : []
+            );
+        }
+
+        res.json(playlists);
+    } catch (error) {
+        handleError(res, error, 'Error getting top 100');
+    }
+});
+
+/**
+ * GET /api/song/:id
+ * Lấy thông tin bài hát (bao gồm streaming URL)
+ */
+router.get('/song/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        // getSong trả về streaming info, getInfoSong trả về song metadata
+        const [streamingResult, infoResult] = await Promise.allSettled([
+            ZingMp3.getSong(id),
+            ZingMp3.getInfoSong(id)
+        ]);
+
+        const streamingRes = streamingResult.status === 'fulfilled' ? streamingResult.value : null;
+        const infoRes = infoResult.status === 'fulfilled' ? infoResult.value : null;
+
+        if (!infoRes && !streamingRes) {
+            return res.status(404).json({ error: 'Song not found' });
+        }
+
+        // Merge data, ưu tiên infoRes cho metadata
+        const data = {
+            ...(infoRes?.data || {}),
+            streaming: streamingRes?.data || null
+        };
+
+        // Log warnings if partial failure
+        if (streamingResult.status === 'rejected') {
+            console.warn(`Failed to fetch streaming for ${id}:`, streamingResult.reason);
+        }
+        if (infoResult.status === 'rejected') {
+            console.warn(`Failed to fetch info for ${id}:`, infoResult.reason);
+        }
+
+        res.json(data);
+    } catch (error) {
+        handleError(res, error, 'Error getting song info');
+    }
+});
+
+/**
+ * GET /api/playlist/:id
+ * Lấy thông tin playlist/album
+ */
+router.get('/playlist/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await ZingMp3.getDetailPlaylist(id);
+        res.json(response?.data || {});
+    } catch (error) {
+        handleError(res, error, 'Error getting playlist');
+    }
+});
+
+/**
+ * GET /api/artist/:id
+ * Lấy thông tin ca sĩ
+ */
+router.get('/artist/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await ZingMp3.getArtist(id);
+        res.json(response?.data || {});
+    } catch (error) {
+        handleError(res, error, 'Error getting artist');
+    }
+});
+
+/**
+ * GET /api/search?q=keyword
+ * Tìm kiếm
+ */
+router.get('/search', async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q) {
+            return res.status(400).json({ error: 'Query parameter "q" is required' });
+        }
+
+        const response = await ZingMp3.search(q);
+        res.json(response?.data || {});
+    } catch (error) {
+        handleError(res, error, 'Error searching');
+    }
+});
+
+/**
+ * GET /api/home
+ * Lấy trang chủ
+ */
+router.get('/home', async (req, res) => {
+    try {
+        const response = await ZingMp3.getHome();
+        res.json(response?.data || {});
+    } catch (error) {
+        handleError(res, error, 'Error getting home');
+    }
+});
+
+/**
+ * GET /api/lyric?id=songId
+ * Lấy lời bài hát
+ */
+router.get('/lyric', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) {
+            return res.status(400).json({ error: 'Query parameter "id" is required' });
+        }
+
+        const response = await ZingMp3.getLyric(id);
+        res.json(response || {});
+    } catch (error) {
+        handleError(res, error, 'Error getting lyric');
+    }
+});
+
+/**
+ * GET /api/debug/song/:id
+ * Debug endpoint - test song fetch without caching
+ */
+router.get('/debug/song/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`\n🔍 Debug: Fetching song ${id}...`);
+
+        // Try both methods
+        const infoResult = await ZingMp3.getInfoSong(id).catch(e => {
+            console.log(`⚠️ getInfoSong failed:`, e.message);
+            return null;
+        });
+
+        const songResult = await ZingMp3.getSong(id).catch(e => {
+            console.log(`⚠️ getSong failed:`, e.message);
+            return null;
+        });
+
+        const response = {
+            songId: id,
+            infoSong: infoResult?.data || null,
+            song: songResult?.data || null,
+            hasInfo: !!infoResult,
+            hasSong: !!songResult,
+        };
+
+        console.log(`✅ Debug result:`, {
+            songId: id,
+            hasInfo: !!infoResult,
+            hasSong: !!songResult,
+            infoTitle: infoResult?.data?.title,
+            songTitle: songResult?.data?.title,
+        });
+
+        res.json(response);
+    } catch (error) {
+        console.error(`❌ Debug error for ${req.params.id}:`, error);
+        handleError(res, error, 'Error debugging song');
+    }
+});
+
+export default router;

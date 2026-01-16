@@ -1,0 +1,28 @@
+{
+    "name": "my-music-backend",
+    "version": "1.0.0",
+    "description": "Backend proxy server for ZingMP3 API",
+    "main": "src/index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "nodemon src/index.js",
+        "start": "node src/index.js"
+    },
+    "keywords": [
+        "zingmp3",
+        "api",
+        "proxy"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "zingmp3-api-full": "^1.0.14",
+        "zingmp3-api-full-v3": "^3.0.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}
