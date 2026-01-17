@@ -37,5 +37,18 @@ Dự án đã được cấu hình để deploy dễ dàng lên Vercel (Frontend
 
 ## Kiểm tra sau khi Deploy
 - Truy cập URL dự án do Vercel cung cấp.
-- Thử nghe nhạc, tìm kiếm để đảm bảo API hoạt động.
 - Thử đăng nhập/đăng xuất để đảm bảo Firebase config đúng.
+
+## Khắc phục lỗi: Không có dữ liệu bài hát (Vercel)
+Nếu app hoạt động dưới Localhost nhưng trên Vercel không hiện dữ liệu (Home page trắng trơn, không có bài hát):
+**Nguyên nhân**: Server của Vercel (thường ở Mỹ/Châu Âu) bị ZingMP3 chặn IP.
+**Cách xử lý**:
+1. Vào `http://zingmp3.vn`, đăng nhập tài khoản của bạn.
+2. Mở Web Developer Tools (F12) -> Tab Network.
+3. Reload trang, tìm request bất kỳ (ví dụ `home`).
+4. Copy toàn bộ giá trị của `Cookie` trong phần **Request Headers**.
+5. Vào Vercel Dashboard -> Project Settings -> Environment Variables.
+6. Thêm biến mới:
+   - Key: `ZING_MP3_COOKIE`
+   - Value: (Dán chuỗi cookie vừa copy vào)
+7. Redeploy lại dự án (Vào Deployments -> Redeploy).

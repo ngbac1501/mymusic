@@ -36,8 +36,15 @@ const handleError = (res, error, message = 'API Error') => {
  */
 router.get('/trending', async (req, res) => {
     try {
+        console.log('[Trending] Fetching trending songs...');
         const response = await ZingMp3.getChartHome();
+
+        if (!response?.data?.RTChart?.items) {
+            console.warn('[Trending] Missing items in response:', response ? 'Response OK' : 'Response NULL');
+        }
+
         const items = response?.data?.RTChart?.items || [];
+        console.log(`[Trending] Found ${items.length} items`);
         res.json(items);
     } catch (error) {
         handleError(res, error, 'Error getting trending songs');
@@ -64,6 +71,7 @@ router.get('/recommendations', async (req, res) => {
  */
 router.get('/new-releases', async (req, res) => {
     try {
+        console.log('[NewReleases] Fetching new releases...');
         const response = await ZingMp3.getNewReleaseChart();
 
         // Response format: {err, msg, data: {items: {all: [...], vPop: [...], others: [...]}}}
@@ -72,6 +80,12 @@ router.get('/new-releases', async (req, res) => {
             items = response.data.items.all || response.data.items.vPop || response.data.items.others || [];
         } else if (Array.isArray(response?.data)) {
             items = response.data;
+        }
+
+        if (items.length === 0) {
+            console.warn('[NewReleases] No items found in response');
+        } else {
+            console.log(`[NewReleases] Found ${items.length} items`);
         }
 
         res.json(items);
@@ -207,7 +221,19 @@ router.get('/search', async (req, res) => {
  */
 router.get('/home', async (req, res) => {
     try {
+        const cookie = process.env.ZING_MP3_COOKIE;
+        console.log(`[Home] Request received. Cookie present: ${!!cookie}, length: ${cookie?.length}`);
+
         const response = await ZingMp3.getHome();
+
+        if (!response) {
+            console.warn('[Home] Response is null/undefined');
+        } else if (!response.data) {
+            console.warn('[Home] Response.data is missing:', JSON.stringify(response));
+        } else {
+            console.log('[Home] Success. Data keys:', Object.keys(response.data));
+        }
+
         res.json(response?.data || {});
     } catch (error) {
         handleError(res, error, 'Error getting home');
