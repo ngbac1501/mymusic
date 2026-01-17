@@ -12,6 +12,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoader } from '@/components/common/PageLoader';
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { AddToPlaylistModal } from '@/components/modals/AddToPlaylistModal';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 // Lazy load pages for better performance
 const HomePage = lazy(() => import('@/pages/HomePage').then(m => ({ default: m.HomePage })));
@@ -70,6 +71,9 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
   const { initialize, setFirebaseUser } = useAuthStore();
   const { theme } = useThemeStore();
+
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
 
   useEffect(() => {
     // Initialize auth state listener and cleanup
